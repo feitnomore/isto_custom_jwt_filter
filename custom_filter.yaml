@@ -1,0 +1,61 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: custom-jwt-auth
+  namespace: istio-system
+spec:
+  workloadLabels:
+    app: services-ingressgateway
+  filters:
+  - listenerMatch:
+      portNumber: 80
+      listenerType: GATEWAY # will match with the inbound gateway on port 80
+      listenerProtocol: HTTP
+    filterName: envoy.lua
+    filterType: HTTP
+    filterConfig:
+      inlineCode: |
+          function envoy_on_request(request_handle)
+          
+             -- Authentication Service details
+             local auth_host = "jwt.authenticator.svc.cluster.local"
+             local auth_port = "8000"
+             local auth_path = "/validate"
+
+             local auth_cluster = "outbound|" .. auth_port .. "||" .. auth_host
+             
+             -- Logging the request and its HTTP Headers
+             request_handle:logCritical("[CUSTOM JWT AUTH FILTER] Processing...")
+             local my_headers = request_handle:headers()
+             for key, value in pairs (my_headers) do
+                 request_handle:logCritical("[CUSTOM JWT AUTH FILTER] Header:" .. key .. " -> " .. value)
+             end
+             
+             -- Build HTTP Headers to send Request to the validation service
+             -- Validation service will look for "x-authentication" and "x-service"
+             local request_headers = {
+                 [":method"] = "GET",
+                 [":path"] = auth_path,
+                 [":authority"] = auth_host,
+                 ["x-authentication"] = request_handle:headers():get("Authorization"),
+                 ["x-service"] = request_handle:headers():get("x-forwarded-host"),
+                 ["x-custom-path"] = request_handle:headers():get("path")
+             }
+             
+             -- Make an HTTP call to the auth host
+             local response_headers, response_body = request_handle:httpCall(
+                auth_cluster,
+                request_headers,
+                "",
+                5000
+             )
+
+             -- Check the auth host response
+             request_handle:logCritical("[CUSTOM JWT AUTH FILTER] Auth Response:" .. response_headers[":status"])
+             if tonumber(response_headers[":status"]) == 401 then
+                 request_handle:respond(
+                     {[":status"] = response_headers[":status"]},
+                     response_body
+                 )
+             end
+           end
