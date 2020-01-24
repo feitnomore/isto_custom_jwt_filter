@@ -52,7 +52,7 @@ spec:
 
              -- Check the auth host response
              request_handle:logCritical("[CUSTOM JWT AUTH FILTER] Auth Response:" .. response_headers[":status"])
-             if tonumber(response_headers[":status"]) == 401 then
+             if tonumber(response_headers[":status"]) ~= 200 then
                  request_handle:respond(
                      {[":status"] = response_headers[":status"]},
                      response_body
