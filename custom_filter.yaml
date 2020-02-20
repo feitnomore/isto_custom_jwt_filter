@@ -40,7 +40,7 @@ spec:
                  ["x-authentication"] = request_handle:headers():get("Authorization"),
                  ["x-service"] = request_handle:headers():get("x-forwarded-host"),
                  ["x-path"] = request_handle:headers():get(":path"),
-                 ["x-verb"] = request_handle:headers():get(":verb")
+                 ["x-verb"] = request_handle:headers():get(":method")
              }
              
              -- Make an HTTP call to the auth host
